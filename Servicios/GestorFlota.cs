@@ -32,7 +32,7 @@ namespace GestionVehiculos.Servicios
         }
 
         // Opción 3: Buscar por Código
-        public Vehiculo BuscarPorCodigo(string codigo)
+        public Vehiculo? BuscarPorCodigo(string codigo)
         {
             return flota.FirstOrDefault(v => v.Codigo.Equals(codigo, StringComparison.OrdinalIgnoreCase));
         }
@@ -59,8 +59,7 @@ namespace GestionVehiculos.Servicios
             var v = BuscarPorCodigo(codigo);
             if (v != null)
             {
-                v.Estado = nuevoEstado;
-                return true;
+                     return v.CambiarEstado(nuevoEstado);
             }
             return false;
         }
