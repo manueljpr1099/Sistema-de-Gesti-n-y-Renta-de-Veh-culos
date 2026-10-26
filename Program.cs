@@ -1,4 +1,5 @@
 ﻿using System;
+using GestionVehiculos.Interfaces;
 using GestionVehiculos.Modelos;
 using GestionVehiculos.Servicios;
 
@@ -10,7 +11,9 @@ namespace GestionVehiculos
 
         static void Main(string[] args)
         {
-            int opcion = 0;
+            CargarDatosDeEjemplo(); // Quita esta línea si prefieres iniciar con la flota vacía
+
+            int opcion;
             do
             {
                 Console.WriteLine("\n========================================");
@@ -25,10 +28,10 @@ namespace GestionVehiculos
                 Console.WriteLine("7. Vehículo con mayor kilometraje");
                 Console.WriteLine("8. Calcular precio promedio de renta");
                 Console.WriteLine("9. Cantidad de vehículos por tipo");
-                Console.WriteLine("10. Realizar mantenimiento");
+                Console.WriteLine("10. Mantenimiento (consultar / realizar)");
                 Console.WriteLine("11. Salir");
 
-                opcion = LeerEntero("\nSeleccione una opción (1-11): ");
+                opcion = LeerEntero("\nSeleccione una opción (1-11): ", 1, 11);
 
                 switch (opcion)
                 {
@@ -39,26 +42,16 @@ namespace GestionVehiculos
                         gestor.MostrarTodos();
                         break;
                     case 3:
-                        Console.Write("Ingrese el código a buscar: ");
-                        var hallado = gestor.BuscarPorCodigo(Console.ReadLine());
-                        if (hallado != null) hallado.MostrarInformacion();
-                        else Console.WriteLine("Vehículo no encontrado.");
+                        MenuBuscar();
                         break;
                     case 4:
-                        gestor.MostrarPorEstado("Disponible");
+                        gestor.MostrarPorEstado(Vehiculo.Disponible);
                         break;
                     case 5:
-                        gestor.MostrarPorEstado("Rentado");
+                        gestor.MostrarPorEstado(Vehiculo.Rentado);
                         break;
                     case 6:
-                        Console.Write("Ingrese código del vehículo: ");
-                        string cod = Console.ReadLine();
-                        Console.Write("Nuevo estado (Disponible / Rentado / En Mantenimiento): ");
-                        string est = Console.ReadLine();
-                        if (!gestor.CambiarEstado(cod, est))
-                            Console.WriteLine("Vehículo no encontrado.");
-                        else
-                            Console.WriteLine("Estado actualizado correctamente.");
+                        MenuCambiarEstado();
                         break;
                     case 7:
                         gestor.MostrarMayorKilometraje();
@@ -70,14 +63,10 @@ namespace GestionVehiculos
                         gestor.ContarPorTipo();
                         break;
                     case 10:
-                        Console.Write("Ingrese código del vehículo para mantenimiento: ");
-                        gestor.EjecutarMantenimiento(Console.ReadLine());
+                        MenuMantenimiento();
                         break;
                     case 11:
                         Console.WriteLine("¡Gracias por utilizar el sistema!");
-                        break;
-                    default:
-                        Console.WriteLine("Opción no válida. Intente nuevamente.");
                         break;
                 }
             } while (opcion != 11);
@@ -89,73 +78,181 @@ namespace GestionVehiculos
             Console.WriteLine("1. Automóvil");
             Console.WriteLine("2. Camioneta");
             Console.WriteLine("3. Motocicleta");
-            int tipo = LeerEntero("Tipo de vehículo: ");
+            int tipo = LeerEntero("Tipo de vehículo (1-3): ", 1, 3); // Se valida antes de pedir los demás datos
 
-            Console.Write("Código único: "); string codigo = Console.ReadLine();
-            Console.Write("Marca: "); string marca = Console.ReadLine();
-            Console.Write("Modelo: "); string modelo = Console.ReadLine();
-            int anio = LeerEntero("Año: ");
-            double km = LeerDouble("Kilometraje actual (km): ");
-            double precio = LeerDouble("Precio de Renta por día ($): ");
+            string codigo = LeerTexto("Código único: ");
+            if (gestor.BuscarPorCodigo(codigo) != null)
+            {
+                MostrarError($"Ya existe un vehículo con el código '{codigo}'. Registro cancelado.");
+                return;
+            }
+
+            string marca = LeerTexto("Marca: ");
+            string modelo = LeerTexto("Modelo: ");
+            int anioMaximo = DateTime.Now.Year + 1;
+            int anio = LeerEntero($"Año (1990-{anioMaximo}): ", 1990, anioMaximo);
+            double km = LeerDouble("Kilometraje actual (km): ", 0, 1000000);
+            double precio = LeerDouble("Precio de renta por día ($): ", 1, 10000000);
 
             if (tipo == 1)
             {
-                int puertas = LeerEntero("Número de Puertas: ");
-                Console.Write("Transmisión (Manual / Automática): "); string trans = Console.ReadLine();
-                Console.Write("Tipo de Combustible (Gasolina / Diésel / Híbrido): "); string comb = Console.ReadLine();
-                Console.Write("¿Tiene Aire Acondicionado? (s/n): "); bool ac = Console.ReadLine().ToLower() == "s";
-                int pas = LeerEntero("Número de pasajeros: ");
+                int puertas = LeerEntero("Número de puertas (2-5): ", 2, 5);
+                string trans = LeerOpcion("Transmisión:", "Manual", "Automática");
+                string comb = LeerOpcion("Tipo de combustible:", "Gasolina", "Diésel", "Híbrido");
+                bool ac = LeerSiNo("¿Tiene aire acondicionado? (s/n): ");
+                int pas = LeerEntero("Número de pasajeros (1-9): ", 1, 9);
 
                 gestor.RegistrarVehiculo(new Automovil(codigo, marca, modelo, anio, km, precio, puertas, trans, comb, ac, pas));
             }
             else if (tipo == 2)
             {
-                double carga = LeerDouble("Capacidad de carga (Toneladas): ");
-                Console.Write("Tipo de Tracción (4x2 / 4x4): "); string trac = Console.ReadLine();
-                Console.Write("¿Tiene Doble Cabina? (s/n): "); bool dc = Console.ReadLine().ToLower() == "s";
-                int pas = LeerEntero("Número de pasajeros: ");
+                // {1.5} se muestra con el separador decimal que usa el PC (1,5 o 1.5)
+                double carga = LeerDouble($"Capacidad de carga en toneladas (ej: {1.5}): ", 0.1, 10);
+                string trac = LeerOpcion("Tipo de tracción:", "4x2", "4x4");
+                bool dc = LeerSiNo("¿Tiene doble cabina? (s/n): ");
+                int pas = LeerEntero("Número de pasajeros (1-9): ", 1, 9);
 
                 gestor.RegistrarVehiculo(new Camioneta(codigo, marca, modelo, anio, km, precio, carga, trac, dc, pas));
             }
-            else if (tipo == 3)
+            else
             {
-                int cc = LeerEntero("Cilindrada (cc): ");
-                Console.Write("Tipo de Motocicleta (Scooter / Enduro / Pistera): "); string tipoM = Console.ReadLine();
-                Console.Write("¿Tiene Baúl? (s/n): "); bool baul = Console.ReadLine().ToLower() == "s";
-                int cascos = LeerEntero("Número de cascos incluidos: ");
+                int cc = LeerEntero("Cilindrada en cc (50-2500): ", 50, 2500);
+                string tipoM = LeerOpcion("Tipo de motocicleta:", "Scooter", "Enduro", "Pistera");
+                bool baul = LeerSiNo("¿Tiene baúl? (s/n): ");
+                int cascos = LeerEntero("Número de cascos incluidos (0-2): ", 0, 2);
 
                 gestor.RegistrarVehiculo(new Motocicleta(codigo, marca, modelo, anio, km, precio, cc, tipoM, baul, cascos));
             }
+        }
+
+        static void MenuBuscar()
+        {
+            string codigo = LeerTexto("Ingrese el código a buscar: ");
+            Vehiculo? hallado = gestor.BuscarPorCodigo(codigo);
+            if (hallado != null) hallado.MostrarInformacion();
+            else Console.WriteLine("Vehículo no encontrado.");
+        }
+
+        static void MenuCambiarEstado()
+        {
+            string codigo = LeerTexto("Ingrese código del vehículo: ");
+            if (gestor.BuscarPorCodigo(codigo) == null)
+            {
+                Console.WriteLine("Vehículo no encontrado.");
+                return;
+            }
+
+            // Solo se puede elegir uno de los estados válidos
+            string nuevoEstado = LeerOpcion("Nuevo estado:", Vehiculo.Disponible, Vehiculo.Rentado, Vehiculo.EnMantenimiento);
+            if (gestor.CambiarEstado(codigo, nuevoEstado))
+                Console.WriteLine("Estado actualizado correctamente.");
             else
+                Console.WriteLine("No se pudo actualizar el estado.");
+        }
+
+        static void MenuMantenimiento()
+        {
+            string codigo = LeerTexto("Ingrese código del vehículo: ");
+            Vehiculo? vehiculo = gestor.BuscarPorCodigo(codigo);
+            if (vehiculo == null)
             {
-                Console.WriteLine("Tipo no válido. Registro cancelado.");
+                Console.WriteLine("Vehículo no encontrado.");
+                return;
+            }
+
+            IMantenimiento mantenimiento = vehiculo; // El vehículo se usa a través de su interfaz
+
+            Console.WriteLine("1. Consultar diagnóstico");
+            Console.WriteLine("2. Realizar mantenimiento");
+            int accion = LeerEntero("Seleccione (1-2): ", 1, 2);
+
+            if (accion == 1)
+                mantenimiento.ConsultarMantenimiento();
+            else
+                mantenimiento.RealizarMantenimiento();
+        }
+
+        // Vehículos de ejemplo para poder probar todas las opciones sin registrar a mano
+        static void CargarDatosDeEjemplo()
+        {
+            Console.WriteLine("Cargando vehículos de ejemplo...");
+            gestor.RegistrarVehiculo(new Automovil("A001", "Chevrolet", "Onix", 2023, 15000, 180000, 4, "Manual", "Gasolina", true, 5));
+            gestor.RegistrarVehiculo(new Automovil("A002", "Toyota", "Corolla", 2024, 8000, 250000, 4, "Automática", "Híbrido", true, 5));
+            gestor.RegistrarVehiculo(new Camioneta("C001", "Toyota", "Hilux", 2022, 45000, 350000, 1.0, "4x4", true, 5));
+            gestor.RegistrarVehiculo(new Motocicleta("M001", "Yamaha", "NMAX", 2024, 3000, 90000, 155, "Scooter", true, 2));
+            gestor.CambiarEstado("C001", Vehiculo.Rentado);
+        }
+
+        // ===== Lectura segura de datos =====
+
+        public static int LeerEntero(string mensaje, int minimo, int maximo)
+        {
+            while (true)
+            {
+                Console.Write(mensaje);
+                if (int.TryParse(Console.ReadLine(), out int valor) && valor >= minimo && valor <= maximo)
+                {
+                    return valor;
+                }
+                MostrarError($"Entrada no válida. Ingrese un número entero entre {minimo} y {maximo}.");
             }
         }
 
-        public static int LeerEntero(string mensaje)
+        public static double LeerDouble(string mensaje, double minimo, double maximo)
         {
-            int valor;
-            Console.Write(mensaje);
-            while (!int.TryParse(Console.ReadLine(), out valor))
+            while (true)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.Write("Entrada no válida. Ingrese un número entero: ");
-                Console.ResetColor();
+                Console.Write(mensaje);
+                if (double.TryParse(Console.ReadLine(), out double valor) && valor >= minimo && valor <= maximo)
+                {
+                    return valor;
+                }
+                MostrarError($"Entrada no válida. Ingrese un número entre {minimo} y {maximo}.");
             }
-            return valor;
         }
 
-        public static double LeerDouble(string mensaje)
+        public static string LeerTexto(string mensaje)
         {
-            double valor;
-            Console.Write(mensaje);
-            while (!double.TryParse(Console.ReadLine(), out valor))
+            while (true)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.Write("Entrada no válida. Ingrese un número decimal: ");
-                Console.ResetColor();
+                Console.Write(mensaje);
+                string texto = (Console.ReadLine() ?? "").Trim();
+                if (texto != "")
+                {
+                    return texto;
+                }
+                MostrarError("Este dato es obligatorio.");
             }
-            return valor;
+        }
+
+        public static bool LeerSiNo(string mensaje)
+        {
+            while (true)
+            {
+                string respuesta = LeerTexto(mensaje).ToLower();
+                if (respuesta == "s" || respuesta == "si" || respuesta == "sí") return true;
+                if (respuesta == "n" || respuesta == "no") return false;
+                MostrarError("Responda s (sí) o n (no).");
+            }
+        }
+
+        // Muestra una lista numerada y devuelve la opción elegida, así no se aceptan valores mal escritos
+        public static string LeerOpcion(string titulo, params string[] opciones)
+        {
+            Console.WriteLine(titulo);
+            for (int i = 0; i < opciones.Length; i++)
+            {
+                Console.WriteLine($"  {i + 1}. {opciones[i]}");
+            }
+            int elegida = LeerEntero($"Seleccione (1-{opciones.Length}): ", 1, opciones.Length);
+            return opciones[elegida - 1];
+        }
+
+        static void MostrarError(string mensaje)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine(mensaje);
+            Console.ResetColor();
         }
     }
 }
